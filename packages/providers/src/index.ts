@@ -10,4 +10,6 @@ export * from "./tts/registry.js";
 export * from "./embedding/types.js";
 export { LocalEmbeddingProvider } from "./embedding/local.js";
 
+export * from "./mcp/client.js";
+
 export type { LocalInferenceConfig } from "./llm/local.js";

@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { LLMChatOptions, LLMChatResult, LLMChatChunk, LLMProvider } from "./types.js";
+import { toOpenAIMessages, toOpenAITools, fromOpenAIToolCalls } from "./openai-shared.js";
 
 export class OpenAILLMProvider implements LLMProvider {
   readonly name = "openai";
@@ -12,13 +13,16 @@ export class OpenAILLMProvider implements LLMProvider {
   async chat(options: LLMChatOptions): Promise<LLMChatResult> {
     const response = await this.client.chat.completions.create({
       model: options.model,
-      messages: options.messages,
+      messages: toOpenAIMessages(options.messages),
       temperature: options.temperature,
       max_tokens: options.maxTokens,
+      tools: toOpenAITools(options.tools),
     });
 
+    const message = response.choices[0]?.message;
     return {
-      text: response.choices[0]?.message?.content ?? "",
+      text: message?.content ?? "",
+      toolCalls: fromOpenAIToolCalls(message?.tool_calls),
       usage: {
         promptTokens: response.usage?.prompt_tokens ?? 0,
         completionTokens: response.usage?.completion_tokens ?? 0,
@@ -29,9 +33,10 @@ export class OpenAILLMProvider implements LLMProvider {
   async *chatStream(options: LLMChatOptions): AsyncIterable<LLMChatChunk> {
     const stream = await this.client.chat.completions.create({
       model: options.model,
-      messages: options.messages,
+      messages: toOpenAIMessages(options.messages),
       temperature: options.temperature,
       max_tokens: options.maxTokens,
+      tools: toOpenAITools(options.tools),
       stream: true,
     });
 

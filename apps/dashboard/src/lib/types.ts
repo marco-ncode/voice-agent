@@ -40,6 +40,50 @@ export interface AgentDocument {
   chunkCount: number;
 }
 
+export type AgentToolKind = "mcp_server" | "custom_api";
+
+export interface McpServerToolConfig {
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export interface CustomApiToolConfig {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  url: string;
+  headers?: Record<string, string>;
+  parametersSchema: Record<string, unknown>;
+}
+
+export interface AgentTool {
+  id: string;
+  agent_id: string;
+  organization_id: string;
+  name: string;
+  description: string;
+  kind: AgentToolKind;
+  enabled: boolean;
+  requires_confirmation: boolean;
+  config: McpServerToolConfig | CustomApiToolConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ToolCallRequestStatus = "pending" | "approved" | "rejected" | "executed" | "failed";
+
+export interface ToolCallRequest {
+  id: string;
+  agent_id: string;
+  agent_tool_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  status: ToolCallRequestStatus;
+  result: unknown;
+  created_at: string;
+  decided_at: string | null;
+  agents: { name: string } | null;
+  agent_tools: { name: string } | null;
+}
+
 export interface AgentFormValues {
   name: string;
   description?: string;
