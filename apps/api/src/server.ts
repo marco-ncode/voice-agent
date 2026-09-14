@@ -10,6 +10,7 @@ import { registerConversationRoutes } from "./routes/conversations.js";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
 import { registerRealtimeRoutes } from "./routes/realtime.js";
 import { registerPlaygroundRoutes } from "./routes/playground.js";
+import { registerDocumentRoutes } from "./routes/documents.js";
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -27,6 +28,7 @@ async function main() {
   registerWebhookRoutes(app, db);
   registerRealtimeRoutes(app, db);
   registerPlaygroundRoutes(app, db);
+  registerDocumentRoutes(app, db);
 
   await app.listen({ port: config.port, host: "0.0.0.0" });
 }

@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { useOrg } from "@/components/providers/OrgProvider";
 import { AgentForm } from "@/components/AgentForm";
 import { PlaygroundChat } from "@/components/PlaygroundChat";
+import { DocumentsPanel } from "@/components/DocumentsPanel";
 import type { Agent, AgentFormValues } from "@/lib/types";
 
 export default function AgentDetailPage() {
@@ -13,7 +14,7 @@ export default function AgentDetailPage() {
   const { selectedOrgId } = useOrg();
   const router = useRouter();
   const [agent, setAgent] = useState<Agent | null>(null);
-  const [tab, setTab] = useState<"config" | "playground">("playground");
+  const [tab, setTab] = useState<"config" | "playground" | "documents">("playground");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,6 +58,7 @@ export default function AgentDetailPage() {
         {(
           [
             ["playground", "Playground"],
+            ["documents", "Documenti"],
             ["config", "Configurazione"],
           ] as const
         ).map(([key, label]) => (
@@ -75,9 +77,17 @@ export default function AgentDetailPage() {
       </div>
 
       <div className="mt-6">
-        {tab === "playground" ? (
+        {tab === "playground" && (
           <PlaygroundChat organizationId={selectedOrgId} agentId={agent.id} />
-        ) : (
+        )}
+        {tab === "documents" && (
+          <DocumentsPanel
+            organizationId={selectedOrgId}
+            agentId={agent.id}
+            ragEnabled={agent.rag_enabled}
+          />
+        )}
+        {tab === "config" && (
           <AgentForm initialAgent={agent} onSubmit={handleUpdate} submitLabel="Salva modifiche" />
         )}
       </div>

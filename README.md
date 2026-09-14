@@ -54,17 +54,20 @@ Per il servizio di inferenza locale, vedi `services/inference/README.md`.
 ## Dashboard
 
 Login/registrazione via Supabase Auth (email + password) → creazione/selezione
-organizzazione → CRUD agenti (prompt, provider LLM/STT/TTS, voce, VAD, RAG) → playground
-per testare l'agente via chat testuale o microfono direttamente dal browser → gestione
-chiavi API per collegare sistemi esterni. Il playground autentica con la sessione utente
-(non richiede una chiave API) tramite un endpoint dedicato lato `apps/api`
-(`/v1/organizations/:id/agents/:id/playground/turn`).
+organizzazione → CRUD agenti (prompt, provider LLM/STT/TTS, voce, VAD, RAG) → scheda
+Documenti per alimentare il RAG dell'agente (incolla testo o carica .txt/.md) →
+playground per testare l'agente via chat testuale o microfono direttamente dal browser →
+gestione chiavi API per collegare sistemi esterni. Il playground e l'ingestion documenti
+autenticano con la sessione utente (non richiedono una chiave API) tramite endpoint
+dedicati lato `apps/api` (`/v1/organizations/:id/agents/:id/playground/turn` e
+`/v1/organizations/:id/agents/:id/documents`); quest'ultimo chunka il testo, lo embedda
+(OpenAI `text-embedding-3-small`) e lo scrive nelle tabelle pgvector scoped per agente.
 
 ## Stato / prossimi passi
 
-Questo scaffold copre: layer multi-provider, schema DB multi-tenant con RAG, API REST +
-webhook + WebSocket real-time, servizio di inferenza GPU, dashboard/builder UI con
-playground chat + voce. **Non ancora implementati**: i connettori SIP/telefonia dedicati
-(le API — REST, webhook, WebSocket real-time — sono già progettate per supportarli) e il
-caricamento documenti per il RAG dalla UI (le tabelle e la query vettoriale esistono già
-in `packages/db`, manca solo l'ingestion).
+Questo scaffold copre: layer multi-provider, schema DB multi-tenant con RAG (incluso il
+caricamento documenti dalla UI), API REST + webhook + WebSocket real-time, servizio di
+inferenza GPU, dashboard/builder UI con playground chat + voce. **Non ancora
+implementati**: i connettori SIP/telefonia dedicati (le API sono già progettate per
+supportarli) e l'estrazione testo da PDF/altri formati per il RAG (per ora solo testo
+semplice: incollato o file .txt/.md).

@@ -32,6 +32,14 @@ export interface Agent {
   updated_at: string;
 }
 
+export interface AgentDocument {
+  id: string;
+  title: string;
+  sourceUrl: string | null;
+  createdAt: string;
+  chunkCount: number;
+}
+
 export interface AgentFormValues {
   name: string;
   description?: string;
