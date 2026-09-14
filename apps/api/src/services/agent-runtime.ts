@@ -151,6 +151,7 @@ export class AgentRuntime {
       text: replyText,
       voiceId: tts.voiceId,
       model: tts.model,
+      language: tts.language,
     });
     await this.usageTracker.record({
       organizationId: this.agent.organizationId,

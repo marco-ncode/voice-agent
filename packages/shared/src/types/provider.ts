@@ -18,6 +18,7 @@ export interface AgentProviderConfig {
     provider: TTSProviderName;
     voiceId: string;
     model?: string;
+    language?: string;
   };
   vad: {
     silenceTimeoutMs: number;

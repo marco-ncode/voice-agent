@@ -10,6 +10,7 @@ export class CartesiaTTSProvider implements TTSProvider {
       transcript: options.text,
       voice: { mode: "id", id: options.voiceId },
       output_format: { container: "raw", encoding: "pcm_s16le", sample_rate: 16_000 },
+      ...(options.language ? { language: options.language } : {}),
     };
   }
 
