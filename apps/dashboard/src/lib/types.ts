@@ -14,6 +14,7 @@ export interface AgentProviderConfig {
     provider: "openai" | "elevenlabs" | "cartesia" | "azure" | "local";
     voiceId: string;
     model?: string;
+    language?: string;
   };
   vad: {
     silenceTimeoutMs: number;

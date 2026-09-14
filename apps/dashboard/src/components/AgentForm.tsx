@@ -211,6 +211,19 @@ export function AgentForm({
             className={inputClass()}
           />
         </Field>
+        <Field label="Lingua (opzionale)">
+          <input
+            value={config.tts.language ?? ""}
+            onChange={(e) => update("tts", { language: e.target.value || undefined })}
+            placeholder="it"
+            className={inputClass()}
+          />
+        </Field>
+        <p className="text-xs text-gray-400 sm:col-span-2">
+          Supporto variabile per provider: ElevenLabs (modelli turbo/multilingual) e Cartesia la
+          usano per forzare la lingua; OpenAI la ignora (rileva automaticamente dal testo); locale
+          (XTTS) la usa per scegliere la pronuncia.
+        </p>
       </Section>
 
       <Section title="Rilevamento voce (VAD)">

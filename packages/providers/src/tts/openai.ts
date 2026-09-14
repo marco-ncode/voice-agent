@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import type { TTSProvider, TTSSynthesizeOptions } from "./types.js";
 
+/** OpenAI's TTS API has no explicit language parameter (it infers pronunciation from the input text), so `options.language` is accepted but unused here. */
 export class OpenAITTSProvider implements TTSProvider {
   readonly name = "openai";
   private readonly client: OpenAI;

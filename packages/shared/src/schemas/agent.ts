@@ -20,6 +20,7 @@ export const agentProviderConfigSchema = z.object({
     provider: ttsProviderNameSchema,
     voiceId: z.string().min(1),
     model: z.string().optional(),
+    language: z.string().optional(),
   }),
   vad: z.object({
     silenceTimeoutMs: z.number().int().positive().default(800),

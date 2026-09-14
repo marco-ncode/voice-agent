@@ -11,6 +11,7 @@ class SynthesizeRequest(BaseModel):
     text: str
     voiceId: str
     model: str | None = None
+    language: str | None = None
     stream: bool = False
 
 
@@ -19,5 +20,5 @@ async def synthesize_endpoint(request: SynthesizeRequest):
     # `stream` is accepted for API-shape parity with the other providers;
     # the underlying TTS backend here is not incremental, so the full
     # buffer is returned in one response either way.
-    audio = synthesize(text=request.text, voice_id=request.voiceId)
+    audio = synthesize(text=request.text, voice_id=request.voiceId, language=request.language or "it")
     return Response(content=audio, media_type="application/octet-stream")
