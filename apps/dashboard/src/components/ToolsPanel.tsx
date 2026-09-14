@@ -24,6 +24,12 @@ export function ToolsPanel({
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
+
   const [kind, setKind] = useState<AgentToolKind>("mcp_server");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -94,6 +100,55 @@ export function ToolsPanel({
     }
   }
 
+  async function handleImport(e: React.FormEvent) {
+    e.preventDefault();
+    setImportError(null);
+    setImportSummary(null);
+    setImporting(true);
+    try {
+      const parsed = JSON.parse(importText) as Record<string, unknown>;
+      const serversMap = (parsed.mcpServers ?? parsed) as Record<
+        string,
+        { url?: string; headers?: Record<string, string> }
+      >;
+      const entries = Object.entries(serversMap);
+      if (entries.length === 0) throw new Error("Nessun server trovato nel JSON");
+
+      let created = 0;
+      const skipped: string[] = [];
+      for (const [entryName, cfg] of entries) {
+        if (!cfg || typeof cfg !== "object" || !cfg.url) {
+          skipped.push(entryName);
+          continue;
+        }
+        await apiFetch(basePath, {
+          method: "POST",
+          body: JSON.stringify({
+            kind: "mcp_server",
+            name: entryName,
+            description: "",
+            requiresConfirmation: false,
+            config: { url: cfg.url, headers: cfg.headers },
+          }),
+        });
+        created++;
+      }
+
+      setImportSummary(
+        `Importati ${created} server MCP.` +
+          (skipped.length
+            ? ` Saltati (manca "url" — i server locali avviati via "command" non sono supportati): ${skipped.join(", ")}.`
+            : ""),
+      );
+      setImportText("");
+      await refresh();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "JSON non valido");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleToggleEnabled(tool: AgentTool) {
     await apiFetch(`${basePath}/${tool.id}`, {
       method: "PATCH",
@@ -114,6 +169,56 @@ export function ToolsPanel({
         Collega server MCP o API esterne che l&apos;agente può chiamare durante la
         conversazione per eseguire azioni (consultare un CRM, creare un ticket, ecc.).
       </p>
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowImport((v) => !v)}
+          className="text-sm text-brand-600 hover:underline"
+        >
+          {showImport ? "Chiudi importazione" : "Importa da JSON"}
+        </button>
+      </div>
+
+      {showImport && (
+        <form onSubmit={handleImport} className="space-y-2 rounded-lg border border-gray-200 bg-white p-5">
+          <p className="text-xs text-gray-500">
+            Incolla la configurazione standard dei server MCP (blocco{" "}
+            <code className="rounded bg-gray-100 px-1">mcpServers</code>, o direttamente la mappa
+            nome → {"{"}url, headers{"}"}). Vengono importati solo i server con trasporto HTTP
+            remoto (campo <code className="rounded bg-gray-100 px-1">url</code>); quelli avviati
+            come processo locale (<code className="rounded bg-gray-100 px-1">command</code>) non
+            sono supportati e vengono ignorati.
+          </p>
+          <textarea
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            rows={8}
+            placeholder={
+              '{\n  "mcpServers": {\n    "il-mio-server": {\n      "url": "https://esempio.com/mcp",\n      "headers": { "Authorization": "Bearer ..." }\n    }\n  }\n}'
+            }
+            className={`${inputClass} font-mono`}
+          />
+          {importError && <p className="text-sm text-red-600">{importError}</p>}
+          {importSummary && <p className="text-sm text-green-700">{importSummary}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={importing || !importText.trim()}
+              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {importing ? "Importazione..." : "Importa"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowImport(false)}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Chiudi
+            </button>
+          </div>
+        </form>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-gray-200 bg-white p-5">
         <div className="flex gap-1 text-xs">
