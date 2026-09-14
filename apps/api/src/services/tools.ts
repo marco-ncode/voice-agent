@@ -87,6 +87,23 @@ export class ToolExecutor {
     return this.tools.find((tool) => tool.definition.name === name);
   }
 
+  /**
+   * Used by flow "tool_call" nodes, which reference a tool by its
+   * agent_tools row id rather than the LLM-facing qualified name. When
+   * that row is an MCP server exposing several sub-tools, `rawToolName`
+   * (the tool's own name on that server, not yet qualified) disambiguates
+   * which one; omit it when the row has exactly one tool (custom_api
+   * always does).
+   */
+  findToolByAgentToolId(agentToolId: string, rawToolName?: string): ExecutableTool | undefined {
+    const candidates = this.tools.filter((tool) => tool.agentToolId === agentToolId);
+    if (candidates.length <= 1 || !rawToolName) return candidates[0];
+    return (
+      candidates.find((tool) => tool.definition.name.endsWith(`__${sanitizeToolName(rawToolName)}`)) ??
+      candidates[0]
+    );
+  }
+
   async dispose(): Promise<void> {
     await Promise.all(this.mcpClients.map((client) => client.close()));
   }

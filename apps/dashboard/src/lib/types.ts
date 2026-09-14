@@ -105,6 +105,68 @@ export interface AgentFormValues {
   ragEnabled: boolean;
 }
 
+export type FlowNodeKind =
+  | "start"
+  | "message"
+  | "condition"
+  | "extract_variable"
+  | "tool_call"
+  | "transfer"
+  | "end";
+
+export type ConditionOperator =
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "is_set"
+  | "is_not_set";
+
+export interface ConditionBranch {
+  id: string;
+  label: string;
+  variable: string;
+  operator: ConditionOperator;
+  value?: string | number | boolean;
+}
+
+/** Flat optional-field bag; which fields apply depends on the node's `kind` (see FlowEditor). */
+export interface FlowNodeData {
+  instruction?: string;
+  waitForUserReply?: boolean;
+  branches?: ConditionBranch[];
+  variable?: string;
+  description?: string;
+  variableType?: "string" | "number" | "boolean";
+  agentToolId?: string;
+  toolName?: string;
+  message?: string;
+  destination?: string;
+}
+
+export interface FlowNode {
+  id: string;
+  kind: FlowNodeKind;
+  position: { x: number; y: number };
+  data: FlowNodeData;
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  sourceHandle?: string;
+  target: string;
+}
+
+export interface AgentFlow {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  enabled: boolean;
+}
+
 export const DEFAULT_PROVIDER_CONFIG: AgentProviderConfig = {
   llm: {
     provider: "openai",

@@ -9,11 +9,17 @@ interface ChatMessage {
   content: string;
 }
 
+interface FlowState {
+  currentNodeId: string | null;
+  variables: Record<string, unknown>;
+}
+
 interface PlaygroundTurnResponse {
   transcript: string;
   replyText: string;
   audioBase64: string;
   audioMimeType: string;
+  flowState: FlowState;
 }
 
 export function PlaygroundChat({
@@ -24,6 +30,7 @@ export function PlaygroundChat({
   agentId: string;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [flowState, setFlowState] = useState<FlowState>({ currentNodeId: null, variables: {} });
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -39,7 +46,7 @@ export function PlaygroundChat({
         `/v1/organizations/${organizationId}/agents/${agentId}/playground/turn`,
         {
           method: "POST",
-          body: JSON.stringify({ ...payload, history: messages }),
+          body: JSON.stringify({ ...payload, history: messages, flowState }),
         },
       );
 
@@ -48,6 +55,7 @@ export function PlaygroundChat({
         { role: "user", content: payload.text ?? result.transcript },
         { role: "assistant", content: result.replyText },
       ]);
+      setFlowState(result.flowState);
 
       if (audioRef.current) {
         audioRef.current.src = `data:${result.audioMimeType};base64,${result.audioBase64}`;
