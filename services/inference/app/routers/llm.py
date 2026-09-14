@@ -76,6 +76,19 @@ def to_openai_tools(tools: list[ToolDefinition] | None) -> list[dict] | None:
     ]
 
 
+@router.get("/models")
+async def list_models():
+    """Proxies the underlying vLLM/TGI server's OpenAI-compatible /v1/models list."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(
+            f"{settings.local_llm_base_url}/models",
+            headers={"Authorization": f"Bearer {settings.local_llm_api_key}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    return {"models": [m["id"] for m in data.get("data", [])]}
+
+
 @router.post("/chat")
 async def chat(request: ChatRequest):
     """

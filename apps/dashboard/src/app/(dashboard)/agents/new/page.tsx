@@ -26,7 +26,7 @@ export default function NewAgentPage() {
     <div>
       <h1 className="text-2xl font-semibold">Nuovo agente</h1>
       <div className="mt-6">
-        <AgentForm onSubmit={handleSubmit} submitLabel="Crea agente" />
+        <AgentForm organizationId={selectedOrgId} onSubmit={handleSubmit} submitLabel="Crea agente" />
       </div>
     </div>
   );
