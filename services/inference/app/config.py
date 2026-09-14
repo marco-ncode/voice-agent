@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     tts_model_id: str = "tts_models/multilingual/multi-dataset/xtts_v2"
     tts_device: str = "cuda"
 
+    # Embeddings for RAG: EmbeddingGemma, native 768-dim output (matches
+    # packages/db/migrations/0004_rag.sql's vector(768) column).
+    embedding_model_id: str = "google/embeddinggemma-300m"
+    embedding_device: str = "cuda"
+
     class Config:
         env_prefix = ""
 

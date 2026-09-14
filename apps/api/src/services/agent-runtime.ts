@@ -63,8 +63,11 @@ export class AgentRuntime {
     private readonly history: LLMMessage[],
   ) {
     this.usageTracker = new UsageTracker(db);
-    if (agent.ragEnabled && config.providers.OPENAI_API_KEY) {
-      this.rag = new RagService(db, config.providers.OPENAI_API_KEY);
+    if (agent.ragEnabled && config.providers.INFERENCE_SERVICE_URL && config.providers.INFERENCE_SERVICE_API_KEY) {
+      this.rag = new RagService(db, {
+        baseUrl: config.providers.INFERENCE_SERVICE_URL,
+        apiKey: config.providers.INFERENCE_SERVICE_API_KEY,
+      });
     }
   }
 

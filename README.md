@@ -55,19 +55,30 @@ Per il servizio di inferenza locale, vedi `services/inference/README.md`.
 
 Login/registrazione via Supabase Auth (email + password) → creazione/selezione
 organizzazione → CRUD agenti (prompt, provider LLM/STT/TTS, voce, VAD, RAG) → scheda
-Documenti per alimentare il RAG dell'agente (incolla testo o carica .txt/.md) →
-playground per testare l'agente via chat testuale o microfono direttamente dal browser →
-gestione chiavi API per collegare sistemi esterni. Il playground e l'ingestion documenti
-autenticano con la sessione utente (non richiedono una chiave API) tramite endpoint
-dedicati lato `apps/api` (`/v1/organizations/:id/agents/:id/playground/turn` e
-`/v1/organizations/:id/agents/:id/documents`); quest'ultimo chunka il testo, lo embedda
-(OpenAI `text-embedding-3-small`) e lo scrive nelle tabelle pgvector scoped per agente.
+Documenti per alimentare il RAG dell'agente (carica PDF, Word .docx, .txt/.md, oppure
+incolla testo direttamente) → playground per testare l'agente via chat testuale o
+microfono direttamente dal browser → gestione chiavi API per collegare sistemi esterni.
+Il playground e l'ingestion documenti autenticano con la sessione utente (non richiedono
+una chiave API) tramite endpoint dedicati lato `apps/api`
+(`/v1/organizations/:id/agents/:id/playground/turn` e
+`/v1/organizations/:id/agents/:id/documents`); quest'ultimo estrae il testo (`pdfjs-dist`
+per i PDF, `mammoth` per i .docx), lo chunka, lo embedda e lo scrive nelle tabelle
+pgvector scoped per agente.
+
+## Embedding per il RAG
+
+Gli embedding usano **EmbeddingGemma** (`google/embeddinggemma-300m`, dimensione nativa
+**768**) eseguito localmente da `services/inference` sulla GPU dedicata — sia per
+indicizzare i documenti sia per le query di retrieval — invece di un'API esterna a
+pagamento. La colonna `agent_document_chunks.embedding` in
+`packages/db/migrations/0004_rag.sql` è fissata a `vector(768)` di conseguenza: se in
+futuro serve un modello con dimensione diversa, va aggiornata sia questa colonna sia la
+funzione `match_agent_document_chunks`.
 
 ## Stato / prossimi passi
 
 Questo scaffold copre: layer multi-provider, schema DB multi-tenant con RAG (incluso il
-caricamento documenti dalla UI), API REST + webhook + WebSocket real-time, servizio di
-inferenza GPU, dashboard/builder UI con playground chat + voce. **Non ancora
-implementati**: i connettori SIP/telefonia dedicati (le API sono già progettate per
-supportarli) e l'estrazione testo da PDF/altri formati per il RAG (per ora solo testo
-semplice: incollato o file .txt/.md).
+caricamento documenti dalla UI con supporto PDF/Word/testo semplice ed embedding locale
+via EmbeddingGemma), API REST + webhook + WebSocket real-time, servizio di inferenza GPU,
+dashboard/builder UI con playground chat + voce. **Non ancora implementati**: i
+connettori SIP/telefonia dedicati (le API sono già progettate per supportarli).

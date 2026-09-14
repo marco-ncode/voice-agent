@@ -11,21 +11,22 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@v-agent/shared": "workspace:*",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/websocket": "^11.0.1",
+    "@supabase/supabase-js": "^2.45.4",
     "@v-agent/db": "workspace:*",
     "@v-agent/providers": "workspace:*",
-    "@supabase/supabase-js": "^2.45.4",
-    "fastify": "^5.0.0",
-    "@fastify/websocket": "^11.0.1",
-    "@fastify/cors": "^10.0.1",
+    "@v-agent/shared": "workspace:*",
     "dotenv": "^16.4.5",
-    "zod": "^3.23.8",
-    "openai": "^4.68.0"
+    "fastify": "^5.0.0",
+    "mammoth": "^1.8.0",
+    "pdfjs-dist": "^6.3.289",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
-    "tsx": "^4.19.1",
     "@types/node": "^20.16.0",
-    "@types/ws": "^8.5.12"
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
   }
 }

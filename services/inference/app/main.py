@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.routers import llm, stt, tts
+from app.routers import embeddings, llm, stt, tts
 
 app = FastAPI(title="V Agent Inference Service")
 
@@ -26,3 +26,4 @@ async def health():
 app.include_router(llm.router)
 app.include_router(stt.router)
 app.include_router(tts.router)
+app.include_router(embeddings.router)

@@ -3,13 +3,23 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createUserAuth, assertOrgMember } from "../plugins/user-auth.js";
 import { ingestDocument } from "../services/documents.js";
+import { extractText } from "../services/text-extraction.js";
 import { config } from "../config.js";
 
-const createDocumentSchema = z.object({
-  title: z.string().min(1).max(300),
-  content: z.string().min(1),
-  sourceUrl: z.string().url().optional(),
-});
+const createDocumentSchema = z.union([
+  z.object({
+    title: z.string().min(1).max(300),
+    content: z.string().min(1),
+    sourceUrl: z.string().url().optional(),
+  }),
+  z.object({
+    title: z.string().min(1).max(300),
+    fileBase64: z.string().min(1),
+    fileName: z.string().min(1),
+    mimeType: z.string().min(1),
+    sourceUrl: z.string().url().optional(),
+  }),
+]);
 
 interface DocumentRow {
   id: string;
@@ -51,21 +61,31 @@ export function registerDocumentRoutes(app: FastifyInstance, db: SupabaseClient)
     const guard = await requireAgent(organizationId, agentId, request.userId!);
     if (guard) return reply.code(guard.error).send(guard.body);
 
-    if (!config.providers.OPENAI_API_KEY) {
-      return reply
-        .code(500)
-        .send({ error: "OPENAI_API_KEY is not configured (required to embed documents)" });
+    if (!config.providers.INFERENCE_SERVICE_URL || !config.providers.INFERENCE_SERVICE_API_KEY) {
+      return reply.code(500).send({
+        error: "INFERENCE_SERVICE_URL / INFERENCE_SERVICE_API_KEY are not configured (required to embed documents)",
+      });
     }
 
     const body = createDocumentSchema.parse(request.body);
     try {
-      const result = await ingestDocument(db, config.providers.OPENAI_API_KEY, {
-        organizationId,
-        agentId,
-        title: body.title,
-        sourceUrl: body.sourceUrl,
-        content: body.content,
-      });
+      const content =
+        "content" in body ? body.content : await extractText(body.fileBase64, body.fileName, body.mimeType);
+
+      const result = await ingestDocument(
+        db,
+        {
+          baseUrl: config.providers.INFERENCE_SERVICE_URL,
+          apiKey: config.providers.INFERENCE_SERVICE_API_KEY,
+        },
+        {
+          organizationId,
+          agentId,
+          title: body.title,
+          sourceUrl: body.sourceUrl,
+          content,
+        },
+      );
       return reply.code(201).send(result);
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : "ingest_failed" });

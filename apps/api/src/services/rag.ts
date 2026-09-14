@@ -1,5 +1,5 @@
-import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { LocalEmbeddingProvider, type LocalInferenceConfig } from "@v-agent/providers";
 
 export interface RagMatch {
   id: string;
@@ -11,26 +11,22 @@ export interface RagMatch {
 
 /**
  * Embeds the query and retrieves the top matching chunks for a single
- * agent via the match_agent_document_chunks RPC (see packages/db/migrations/0004_rag.sql).
- * Embeddings use OpenAI text-embedding-3-small (1536 dims) regardless of
- * which LLM/STT/TTS providers the agent is configured with.
+ * agent via the match_agent_document_chunks RPC (see
+ * packages/db/migrations/0004_rag.sql). Embeddings use EmbeddingGemma
+ * (768 dims, local GPU inference) for both indexing and querying.
  */
 export class RagService {
-  private readonly openai: OpenAI;
+  private readonly embeddings: LocalEmbeddingProvider;
 
   constructor(
     private readonly db: SupabaseClient,
-    openaiApiKey: string,
+    inferenceConfig: LocalInferenceConfig,
   ) {
-    this.openai = new OpenAI({ apiKey: openaiApiKey });
+    this.embeddings = new LocalEmbeddingProvider(inferenceConfig);
   }
 
   async query(agentId: string, text: string, matchCount = 5): Promise<RagMatch[]> {
-    const embeddingResponse = await this.openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: text,
-    });
-    const queryEmbedding = embeddingResponse.data[0]?.embedding;
+    const [queryEmbedding] = await this.embeddings.embed([text], "query");
     if (!queryEmbedding) return [];
 
     const { data, error } = await this.db.rpc("match_agent_document_chunks", {

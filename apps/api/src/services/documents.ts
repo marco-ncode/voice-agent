@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import OpenAI from "openai";
+import { LocalEmbeddingProvider, type LocalInferenceConfig } from "@v-agent/providers";
 
 const CHUNK_SIZE = 1_000;
 const CHUNK_OVERLAP = 150;
@@ -36,13 +36,13 @@ export interface IngestResult {
 }
 
 /**
- * Chunks the document, embeds every chunk (OpenAI text-embedding-3-small,
- * matching the 1536-dim column in packages/db/migrations/0004_rag.sql), and
- * stores both the document and its chunks scoped to the given agent.
+ * Chunks the document, embeds every chunk (EmbeddingGemma, 768 dims,
+ * matching the column in packages/db/migrations/0004_rag.sql), and stores
+ * both the document and its chunks scoped to the given agent.
  */
 export async function ingestDocument(
   db: SupabaseClient,
-  openaiApiKey: string,
+  inferenceConfig: LocalInferenceConfig,
   params: IngestDocumentParams,
 ): Promise<IngestResult> {
   if (params.content.length > MAX_CONTENT_LENGTH) {
@@ -68,18 +68,15 @@ export async function ingestDocument(
     .single();
   if (documentError) throw new Error(`Failed to create document: ${documentError.message}`);
 
-  const openai = new OpenAI({ apiKey: openaiApiKey });
-  const embeddingResponse = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: chunks,
-  });
+  const embeddingProvider = new LocalEmbeddingProvider(inferenceConfig);
+  const embeddings = await embeddingProvider.embed(chunks, "document");
 
   const rows = chunks.map((content, i) => ({
     document_id: document.id as string,
     agent_id: params.agentId,
     organization_id: params.organizationId,
     content,
-    embedding: embeddingResponse.data[i]!.embedding,
+    embedding: embeddings[i]!,
   }));
 
   const { error: chunksError } = await db.from("agent_document_chunks").insert(rows);

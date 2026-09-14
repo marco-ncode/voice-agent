@@ -1,7 +1,8 @@
 -- RAG knowledge base, scoped per agent.
--- Embedding dimension defaults to 1536 (OpenAI text-embedding-3-small).
--- If multiple embedding models/dimensions are needed later, split into
--- per-dimension tables or move to a provider-agnostic vector store.
+-- Embedding dimension is 768, matching EmbeddingGemma's (google/embeddinggemma-300m)
+-- native output, served locally by services/inference. If multiple embedding
+-- models/dimensions are needed later, split into per-dimension tables or move
+-- to a provider-agnostic vector store.
 
 create table agent_documents (
   id uuid primary key default gen_random_uuid(),
@@ -20,7 +21,7 @@ create table agent_document_chunks (
   agent_id uuid not null references agents (id) on delete cascade,
   organization_id uuid not null references organizations (id) on delete cascade,
   content text not null,
-  embedding vector(1536) not null,
+  embedding vector(768) not null,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
@@ -32,7 +33,7 @@ create index agent_document_chunks_embedding_idx on agent_document_chunks
 -- Similarity search scoped to a single agent (and therefore its organization).
 create or replace function match_agent_document_chunks(
   p_agent_id uuid,
-  p_query_embedding vector(1536),
+  p_query_embedding vector(768),
   p_match_count int default 5
 )
 returns table (
