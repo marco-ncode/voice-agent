@@ -4,6 +4,8 @@ Piattaforma per costruire agenti vocali conversazionali multi-provider — colle
 OpenAI, Azure, HuggingFace/modelli locali (GPU dedicata), ed esposta via API pubbliche
 per l'integrazione con sistemi terzi (gestori SIP/VoIP, CRM, contact center, ecc.).
 
+**Documentazione API pubbliche** (per collegare V Agent a sistemi esterni): [`docs/api.md`](docs/api.md).
+
 ## Struttura del monorepo
 
 ```
