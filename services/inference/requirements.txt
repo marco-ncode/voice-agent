@@ -1,0 +1,10 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic-settings==2.5.2
+httpx==0.27.2
+faster-whisper==1.0.3
+numpy==1.26.4
+# encode_query/encode_document (used for EmbeddingGemma's prompt templates)
+# need a recent sentence-transformers; bump further if the pinned version
+# predates official EmbeddingGemma support.
+sentence-transformers==3.3.1
