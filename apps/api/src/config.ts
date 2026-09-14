@@ -1,4 +1,12 @@
-import "dotenv/config";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+import dotenv from "dotenv";
+
+// Resolve the monorepo root .env by file location, not process.cwd(): pnpm
+// --filter (used by `pnpm dev:api`) runs this with cwd set to apps/api, so
+// the bare `dotenv/config` default would silently miss the root .env.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: resolve(__dirname, "../../../.env") });
 
 function required(name: string): string {
   const value = process.env[name];
