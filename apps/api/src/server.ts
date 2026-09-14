@@ -14,6 +14,7 @@ import { registerDocumentRoutes } from "./routes/documents.js";
 import { registerAgentToolRoutes } from "./routes/agent-tools.js";
 import { registerToolCallRequestRoutes } from "./routes/tool-call-requests.js";
 import { registerProviderCatalogRoutes } from "./routes/provider-catalog.js";
+import { registerAgentFlowRoutes } from "./routes/agent-flow.js";
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -35,6 +36,7 @@ async function main() {
   registerAgentToolRoutes(app, db);
   registerToolCallRequestRoutes(app, db);
   registerProviderCatalogRoutes(app, db);
+  registerAgentFlowRoutes(app, db);
 
   await app.listen({ port: config.port, host: "0.0.0.0" });
 }

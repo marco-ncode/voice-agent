@@ -8,6 +8,7 @@ import { AgentForm } from "@/components/AgentForm";
 import { PlaygroundChat } from "@/components/PlaygroundChat";
 import { DocumentsPanel } from "@/components/DocumentsPanel";
 import { ToolsPanel } from "@/components/ToolsPanel";
+import { FlowEditor } from "@/components/FlowEditor";
 import type { Agent, AgentFormValues } from "@/lib/types";
 
 export default function AgentDetailPage() {
@@ -15,7 +16,9 @@ export default function AgentDetailPage() {
   const { selectedOrgId } = useOrg();
   const router = useRouter();
   const [agent, setAgent] = useState<Agent | null>(null);
-  const [tab, setTab] = useState<"config" | "playground" | "documents" | "tools">("playground");
+  const [tab, setTab] = useState<"config" | "playground" | "documents" | "tools" | "flow">(
+    "playground",
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,6 +64,7 @@ export default function AgentDetailPage() {
             ["playground", "Playground"],
             ["documents", "Documenti"],
             ["tools", "Strumenti"],
+            ["flow", "Flusso"],
             ["config", "Configurazione"],
           ] as const
         ).map(([key, label]) => (
@@ -90,6 +94,7 @@ export default function AgentDetailPage() {
           />
         )}
         {tab === "tools" && <ToolsPanel organizationId={selectedOrgId} agentId={agent.id} />}
+        {tab === "flow" && <FlowEditor organizationId={selectedOrgId} agentId={agent.id} />}
         {tab === "config" && (
           <AgentForm
             organizationId={selectedOrgId}

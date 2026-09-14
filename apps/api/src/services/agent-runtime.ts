@@ -6,13 +6,15 @@ import {
   type LLMMessage,
   type LLMUsage,
 } from "@v-agent/providers";
-import type { AgentProviderConfig } from "@v-agent/shared";
+import type { AgentProviderConfig, FlowExecutionState } from "@v-agent/shared";
 import { config } from "../config.js";
 import { UsageTracker } from "./usage-tracker.js";
 import { RagService } from "./rag.js";
 import { pcmToWav } from "./audio.js";
 import { ToolExecutor } from "./tools.js";
 import { ToolCallLog } from "./tool-call-log.js";
+import { loadEnabledAgentFlow } from "./agent-flow.js";
+import { FlowRuntime } from "./flow-runtime.js";
 
 export interface AgentRecord {
   id: string;
@@ -53,24 +55,28 @@ export async function loadAgent(
  * Runs one full user-turn: transcribe the buffered utterance (or skip
  * straight to the LLM when the caller already has text, e.g. the dashboard
  * playground's text mode), optionally augment the prompt with RAG context,
- * let the LLM call any tools configured for the agent (MCP servers or
- * custom APIs), get its final reply, and synthesize it to audio.
- * Non-streaming end-to-end for simplicity; each provider's streaming
- * methods are already exposed for a lower-latency version later.
+ * then either walk the agent's visual flow (if it has one enabled) or let
+ * the LLM call tools freely, get the final reply, and synthesize it to
+ * audio. Non-streaming end-to-end for simplicity; each provider's
+ * streaming methods are already exposed for a lower-latency version later.
  */
 export class AgentRuntime {
   private readonly usageTracker: UsageTracker;
   private readonly toolCallLog: ToolCallLog;
   private readonly rag?: RagService;
+  /** Mutated in place by flow execution; callers read it back to persist/forward it across turns. */
+  public readonly flowState: FlowExecutionState;
 
   constructor(
     private readonly db: SupabaseClient,
     private readonly agent: AgentRecord,
     private readonly conversationId: string | undefined,
     private readonly history: LLMMessage[],
+    flowState?: FlowExecutionState,
   ) {
     this.usageTracker = new UsageTracker(db);
     this.toolCallLog = new ToolCallLog(db);
+    this.flowState = flowState ?? { currentNodeId: null, variables: {} };
     if (agent.ragEnabled && config.providers.INFERENCE_SERVICE_URL && config.providers.INFERENCE_SERVICE_API_KEY) {
       this.rag = new RagService(db, {
         baseUrl: config.providers.INFERENCE_SERVICE_URL,
@@ -138,37 +144,75 @@ export class AgentRuntime {
     const llmProvider = createLLMProvider(llm.provider, config.providers);
     const toolExecutor = new ToolExecutor(this.db);
     let replyText: string;
+    let flowEnded = false;
+    let usedFlow = false;
 
     try {
-      const toolDefs = await toolExecutor.loadForAgent(this.agent.id);
-      replyText = await this.runToolCallingLoop(llmProvider, llm, toolDefs, toolExecutor);
+      const flow = await loadEnabledAgentFlow(this.db, this.agent.id);
+      if (flow) {
+        usedFlow = true;
+        await toolExecutor.loadForAgent(this.agent.id);
+        const flowRuntime = new FlowRuntime(
+          flow,
+          llmProvider,
+          llm.model,
+          llm.temperature,
+          this.history,
+          this.flowState,
+          toolExecutor,
+          this.toolCallLog,
+          { organizationId: this.agent.organizationId, agentId: this.agent.id, conversationId: this.conversationId },
+          (usage) => this.recordLlmUsage(usage),
+        );
+        const outcome = await flowRuntime.run();
+        replyText = outcome.replyText;
+        flowEnded = outcome.ended;
+      } else {
+        const toolDefs = await toolExecutor.loadForAgent(this.agent.id);
+        replyText = await this.runToolCallingLoop(llmProvider, llm, toolDefs, toolExecutor);
+      }
     } finally {
       await toolExecutor.dispose();
     }
 
     const ttsProvider = createTTSProvider(tts.provider, config.providers);
-    const replyAudio = await ttsProvider.synthesize({
-      text: replyText,
-      voiceId: tts.voiceId,
-      model: tts.model,
-      language: tts.language,
-    });
-    await this.usageTracker.record({
-      organizationId: this.agent.organizationId,
-      agentId: this.agent.id,
-      conversationId: this.conversationId,
-      kind: "tts",
-      provider: tts.provider,
-      model: tts.model,
-      unit: "audio_seconds",
-      quantity: replyText.length / 15, // rough chars-per-second estimate until real duration is threaded through
-    });
+    const replyAudio = replyText
+      ? await ttsProvider.synthesize({
+          text: replyText,
+          voiceId: tts.voiceId,
+          model: tts.model,
+          language: tts.language,
+        })
+      : Buffer.alloc(0);
+    if (replyText) {
+      await this.usageTracker.record({
+        organizationId: this.agent.organizationId,
+        agentId: this.agent.id,
+        conversationId: this.conversationId,
+        kind: "tts",
+        provider: tts.provider,
+        model: tts.model,
+        unit: "audio_seconds",
+        quantity: replyText.length / 15, // rough chars-per-second estimate until real duration is threaded through
+      });
+    }
 
     if (this.conversationId) {
       await this.db.from("conversation_turns").insert([
         { conversation_id: this.conversationId, role: "user", text: userText },
         { conversation_id: this.conversationId, role: "agent", text: replyText },
       ]);
+      if (flowEnded) {
+        await this.db
+          .from("conversations")
+          .update({ status: "completed", ended_at: new Date().toISOString() })
+          .eq("id", this.conversationId);
+      } else if (usedFlow) {
+        await this.db
+          .from("conversations")
+          .update({ current_node_id: this.flowState.currentNodeId, variables: this.flowState.variables })
+          .eq("id", this.conversationId);
+      }
     }
 
     return { replyText, audio: replyAudio };
@@ -178,6 +222,7 @@ export class AgentRuntime {
    * Alternates LLM calls with tool execution until the model returns a
    * plain text reply (no more tool calls) or MAX_TOOL_ROUNDS is hit, in
    * which case one final call without tools forces a wrap-up answer.
+   * Used when the agent has no enabled flow (free-prompt mode).
    */
   private async runToolCallingLoop(
     llmProvider: ReturnType<typeof createLLMProvider>,

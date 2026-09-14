@@ -2,8 +2,10 @@ import type { FastifyInstance } from "fastify";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hashApiKey } from "../plugins/auth.js";
 import { loadAgent, AgentRuntime } from "../services/agent-runtime.js";
+import { loadConversationFlowState } from "../services/agent-flow.js";
 import { UtteranceDetector } from "../services/vad.js";
 import type { LLMMessage } from "@v-agent/providers";
+import type { FlowExecutionState } from "@v-agent/shared";
 
 async function resolveOrganizationId(
   db: SupabaseClient,
@@ -55,6 +57,9 @@ export function registerRealtimeRoutes(app: FastifyInstance, db: SupabaseClient)
     const history: LLMMessage[] = [
       { role: "system", content: agent.providerConfig.llm.systemPrompt },
     ];
+    const flowState: FlowExecutionState = query.conversation_id
+      ? await loadConversationFlowState(db, query.conversation_id)
+      : { currentNodeId: null, variables: {} };
     const detector = new UtteranceDetector(
       agent.providerConfig.vad.silenceTimeoutMs,
       agent.providerConfig.vad.minSpeechMs,
@@ -68,7 +73,7 @@ export function registerRealtimeRoutes(app: FastifyInstance, db: SupabaseClient)
       if (!utterance || processing) return;
       processing = true;
 
-      const runtime = new AgentRuntime(db, agent, query.conversation_id, history);
+      const runtime = new AgentRuntime(db, agent, query.conversation_id, history, flowState);
       runtime
         .runTurn(utterance)
         .then((result) => {

@@ -174,6 +174,24 @@ dashboard, ma se stai orchestrando la creazione via API dashboard-side, la forma
 
 ---
 
+## Flusso conversazionale (builder grafico)
+
+Dalla tab **Flusso** della dashboard si può costruire, per ogni agente, un grafo
+deterministico di nodi (messaggio, condizione IF/SWITCH, estrazione variabile,
+chiamata a strumento, trasferimento a operatore, fine) in alternativa al prompt
+libero. Quando un agente ha un flusso **attivo**, sia il canale realtime che
+l'endpoint playground lo eseguono automaticamente — non serve alcuna chiamata API
+aggiuntiva lato tuo connettore.
+
+L'unica cosa rilevante per un'integrazione esterna è che lo stato di esecuzione
+(nodo corrente + variabili raccolte) è legato al `conversation_id`: passandolo
+sempre sulla stessa connessione WebSocket (o riaprendola con lo stesso
+`conversation_id` dopo una disconnessione), la conversazione riprende dal punto
+in cui si trovava invece di ripartire dall'inizio del flusso. Senza flusso attivo
+configurato, il comportamento resta quello preesistente (prompt libero + LLM).
+
+---
+
 ## Codici di errore comuni
 
 | Status | Corpo | Significato |

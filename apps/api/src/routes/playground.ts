@@ -13,6 +13,12 @@ const playgroundTurnSchema = z
     history: z
       .array(z.object({ role: z.enum(["system", "user", "assistant"]), content: z.string() }))
       .default([]),
+    flowState: z
+      .object({
+        currentNodeId: z.string().nullable(),
+        variables: z.record(z.unknown()),
+      })
+      .optional(),
   })
   .refine((v) => v.text != null || v.audioBase64 != null, {
     message: "either text or audioBase64 is required",
@@ -52,7 +58,7 @@ export function registerPlaygroundRoutes(app: FastifyInstance, db: SupabaseClien
         { role: "system", content: agent.providerConfig.llm.systemPrompt },
         ...body.history,
       ];
-      const runtime = new AgentRuntime(db, agent, undefined, history);
+      const runtime = new AgentRuntime(db, agent, undefined, history, body.flowState);
 
       const result = body.audioBase64
         ? await runtime.runTurn(Buffer.from(body.audioBase64, "base64"))
@@ -62,13 +68,14 @@ export function registerPlaygroundRoutes(app: FastifyInstance, db: SupabaseClien
           };
 
       const isRawPcm = RAW_PCM_TTS_PROVIDERS.has(agent.providerConfig.tts.provider);
-      const audio = isRawPcm ? pcmToWav(result.audio) : result.audio;
+      const audio = result.audio.length > 0 && isRawPcm ? pcmToWav(result.audio) : result.audio;
 
       return reply.send({
         transcript: result.transcript,
         replyText: result.replyText,
         audioBase64: audio.toString("base64"),
         audioMimeType: isRawPcm ? "audio/wav" : "audio/mpeg",
+        flowState: runtime.flowState,
       });
     },
   );
