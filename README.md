@@ -10,6 +10,8 @@ per l'integrazione con sistemi terzi (gestori SIP/VoIP, CRM, contact center, ecc
 apps/
   api/            Gateway Node.js/TypeScript (Fastify): REST + webhook + WebSocket
                   real-time per audio streaming, orchestrazione STT -> LLM -> TTS.
+  dashboard/      Builder UI (Next.js): gestione organizzazioni/agenti/chiavi API,
+                  playground chat + voce per testare un agente senza uscire dal browser.
 packages/
   shared/         Tipi di dominio e schemi zod condivisi.
   providers/      Layer di astrazione multi-provider per LLM / STT / TTS.
@@ -40,16 +42,29 @@ un'interfaccia comune, cosi lo switch provider non richiede modifiche al core.
 pnpm install
 cp .env.example .env   # popolare le chiavi Supabase + provider
 pnpm dev:api
+
+cp apps/dashboard/.env.local.example apps/dashboard/.env.local   # chiavi Supabase pubbliche + URL api
+pnpm dev:dashboard
 ```
 
 Per applicare lo schema Supabase, vedi `packages/db/README.md`.
 
 Per il servizio di inferenza locale, vedi `services/inference/README.md`.
 
+## Dashboard
+
+Login/registrazione via Supabase Auth (email + password) → creazione/selezione
+organizzazione → CRUD agenti (prompt, provider LLM/STT/TTS, voce, VAD, RAG) → playground
+per testare l'agente via chat testuale o microfono direttamente dal browser → gestione
+chiavi API per collegare sistemi esterni. Il playground autentica con la sessione utente
+(non richiede una chiave API) tramite un endpoint dedicato lato `apps/api`
+(`/v1/organizations/:id/agents/:id/playground/turn`).
+
 ## Stato / prossimi passi
 
 Questo scaffold copre: layer multi-provider, schema DB multi-tenant con RAG, API REST +
-webhook + WebSocket real-time, servizio di inferenza GPU. **Non ancora implementata**:
-la dashboard/builder UI (configurazione agenti stile ElevenLabs Agents + playground
-chat/voce) e i connettori SIP/telefonia dedicati — le API sono progettate per
-supportarli, ma i connettori stessi sono un prossimo step.
+webhook + WebSocket real-time, servizio di inferenza GPU, dashboard/builder UI con
+playground chat + voce. **Non ancora implementati**: i connettori SIP/telefonia dedicati
+(le API — REST, webhook, WebSocket real-time — sono già progettate per supportarli) e il
+caricamento documenti per il RAG dalla UI (le tabelle e la query vettoriale esistono già
+in `packages/db`, manca solo l'ingestion).

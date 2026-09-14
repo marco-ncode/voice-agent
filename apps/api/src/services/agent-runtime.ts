@@ -9,6 +9,7 @@ import type { AgentProviderConfig } from "@v-agent/shared";
 import { config } from "../config.js";
 import { UsageTracker } from "./usage-tracker.js";
 import { RagService } from "./rag.js";
+import { pcmToWav } from "./audio.js";
 
 export interface AgentRecord {
   id: string;
@@ -44,10 +45,12 @@ export async function loadAgent(
 }
 
 /**
- * Runs one full user-turn: transcribe the buffered utterance, optionally
- * augment the prompt with RAG context, get the LLM's reply, and synthesize
- * it to audio. Non-streaming end-to-end for simplicity; each provider's
- * streaming methods are already exposed for a lower-latency version later.
+ * Runs one full user-turn: transcribe the buffered utterance (or skip
+ * straight to the LLM when the caller already has text, e.g. the dashboard
+ * playground's text mode), optionally augment the prompt with RAG context,
+ * get the LLM's reply, and synthesize it to audio. Non-streaming end-to-end
+ * for simplicity; each provider's streaming methods are already exposed for
+ * a lower-latency version later.
  */
 export class AgentRuntime {
   private readonly usageTracker: UsageTracker;
@@ -65,12 +68,12 @@ export class AgentRuntime {
     }
   }
 
+  /** Utterance in as raw 16kHz mono PCM16LE (from VAD or a mic recording). */
   async runTurn(audio: Buffer): Promise<TurnResult> {
-    const { llm, stt, tts } = this.agent.providerConfig;
-
+    const { stt } = this.agent.providerConfig;
     const sttProvider = createSTTProvider(stt.provider, config.providers);
     const { text: transcript, audioSeconds } = await sttProvider.transcribe({
-      audio,
+      audio: pcmToWav(audio),
       mimeType: "audio/wav",
       language: stt.language,
       model: stt.model,
@@ -86,12 +89,24 @@ export class AgentRuntime {
       quantity: audioSeconds,
     });
 
-    let userMessage = transcript;
+    const { replyText, audio: replyAudio } = await this.completeTurn(transcript);
+    return { transcript, replyText, audio: replyAudio };
+  }
+
+  /** Text in directly, skipping STT (dashboard playground's text chat mode). */
+  async runTextTurn(text: string): Promise<Omit<TurnResult, "transcript">> {
+    return this.completeTurn(text);
+  }
+
+  private async completeTurn(userText: string): Promise<Omit<TurnResult, "transcript">> {
+    const { llm, tts } = this.agent.providerConfig;
+
+    let userMessage = userText;
     if (this.rag) {
-      const matches = await this.rag.query(this.agent.id, transcript, 5);
+      const matches = await this.rag.query(this.agent.id, userText, 5);
       if (matches.length > 0) {
         const context = matches.map((m) => `- ${m.content}`).join("\n");
-        userMessage = `Contesto rilevante:\n${context}\n\nDomanda utente: ${transcript}`;
+        userMessage = `Contesto rilevante:\n${context}\n\nDomanda utente: ${userText}`;
       }
     }
     this.history.push({ role: "user", content: userMessage });
@@ -133,11 +148,11 @@ export class AgentRuntime {
 
     if (this.conversationId) {
       await this.db.from("conversation_turns").insert([
-        { conversation_id: this.conversationId, role: "user", text: transcript },
+        { conversation_id: this.conversationId, role: "user", text: userText },
         { conversation_id: this.conversationId, role: "agent", text: replyText },
       ]);
     }
 
-    return { transcript, replyText, audio: replyAudio };
+    return { replyText, audio: replyAudio };
   }
 }

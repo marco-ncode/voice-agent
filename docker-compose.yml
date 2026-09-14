@@ -10,6 +10,20 @@ services:
       - inference
     restart: unless-stopped
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
   # Requires an NVIDIA GPU + nvidia-container-toolkit on the host. On a
   # machine without a dedicated GPU (or when only cloud providers are used),
   # comment this service out and leave INFERENCE_SERVICE_URL unset in .env.
