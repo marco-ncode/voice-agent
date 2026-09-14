@@ -91,7 +91,12 @@ export default function AgentDetailPage() {
         )}
         {tab === "tools" && <ToolsPanel organizationId={selectedOrgId} agentId={agent.id} />}
         {tab === "config" && (
-          <AgentForm initialAgent={agent} onSubmit={handleUpdate} submitLabel="Salva modifiche" />
+          <AgentForm
+            organizationId={selectedOrgId}
+            initialAgent={agent}
+            onSubmit={handleUpdate}
+            submitLabel="Salva modifiche"
+          />
         )}
       </div>
     </div>

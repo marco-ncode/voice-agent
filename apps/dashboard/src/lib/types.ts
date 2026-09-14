@@ -85,6 +85,19 @@ export interface ToolCallRequest {
   agent_tools: { name: string } | null;
 }
 
+export interface ProviderCatalogEntry {
+  available: boolean;
+  models?: string[];
+  voices?: Array<{ id: string; name: string }>;
+  error?: string;
+}
+
+export interface ProviderCatalog {
+  llm: Record<string, ProviderCatalogEntry>;
+  stt: Record<string, ProviderCatalogEntry>;
+  tts: Record<string, ProviderCatalogEntry>;
+}
+
 export interface AgentFormValues {
   name: string;
   description?: string;

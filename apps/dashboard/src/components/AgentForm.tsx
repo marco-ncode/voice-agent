@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import type { Agent, AgentFormValues, AgentProviderConfig } from "@/lib/types";
+import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
+import type { Agent, AgentFormValues, AgentProviderConfig, ProviderCatalog } from "@/lib/types";
 import { DEFAULT_PROVIDER_CONFIG } from "@/lib/types";
 
 const LLM_PROVIDERS = ["openai", "azure-openai", "local"] as const;
@@ -32,11 +33,42 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function AvailabilityHint({
+  catalog,
+  section,
+  provider,
+}: {
+  catalog: ProviderCatalog | null;
+  section: keyof ProviderCatalog;
+  provider: string;
+}) {
+  const entry = catalog?.[section]?.[provider];
+  if (!entry) return null;
+  if (!entry.available) {
+    return (
+      <p className="sm:col-span-2 -mt-2 text-xs text-amber-600">
+        Chiave API per &quot;{provider}&quot; non configurata su questo deployment: il campo
+        sotto resta a inserimento manuale.
+      </p>
+    );
+  }
+  if (entry.error) {
+    return (
+      <p className="sm:col-span-2 -mt-2 text-xs text-amber-600">
+        Elenco modelli/voci non disponibile ({entry.error}): inserisci il valore manualmente.
+      </p>
+    );
+  }
+  return null;
+}
+
 export function AgentForm({
+  organizationId,
   initialAgent,
   onSubmit,
   submitLabel,
 }: {
+  organizationId: string;
   initialAgent?: Agent;
   onSubmit: (values: AgentFormValues) => Promise<void>;
   submitLabel: string;
@@ -49,6 +81,13 @@ export function AgentForm({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<ProviderCatalog | null>(null);
+
+  useEffect(() => {
+    apiFetch<ProviderCatalog>(`/v1/organizations/${organizationId}/provider-catalog`)
+      .then(setCatalog)
+      .catch(() => setCatalog(null));
+  }, [organizationId]);
 
   function update<K extends keyof AgentProviderConfig>(
     section: K,
@@ -69,6 +108,12 @@ export function AgentForm({
       setSubmitting(false);
     }
   }
+
+  const llmModels = catalog?.llm[config.llm.provider]?.models ?? [];
+  const sttModels = catalog?.stt[config.stt.provider]?.models ?? [];
+  const ttsEntry = catalog?.tts[config.tts.provider];
+  const ttsModels = ttsEntry?.models ?? [];
+  const ttsVoices = ttsEntry?.voices ?? [];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
@@ -129,12 +174,19 @@ export function AgentForm({
         <Field label="Modello">
           <input
             required
+            list="llm-models"
             value={config.llm.model}
             onChange={(e) => update("llm", { model: e.target.value })}
             placeholder="es. gpt-4o-mini"
             className={inputClass()}
           />
+          <datalist id="llm-models">
+            {llmModels.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
         </Field>
+        <AvailabilityHint catalog={catalog} section="llm" provider={config.llm.provider} />
         <Field label="Temperatura">
           <input
             type="number"
@@ -164,12 +216,19 @@ export function AgentForm({
         </Field>
         <Field label="Modello (opzionale)">
           <input
+            list="stt-models"
             value={config.stt.model ?? ""}
             onChange={(e) => update("stt", { model: e.target.value || undefined })}
             placeholder="es. whisper-1, nova-2"
             className={inputClass()}
           />
+          <datalist id="stt-models">
+            {sttModels.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
         </Field>
+        <AvailabilityHint catalog={catalog} section="stt" provider={config.stt.provider} />
         <Field label="Lingua (opzionale)">
           <input
             value={config.stt.language ?? ""}
@@ -197,19 +256,34 @@ export function AgentForm({
         <Field label="Voice ID">
           <input
             required
+            list="tts-voices"
             value={config.tts.voiceId}
             onChange={(e) => update("tts", { voiceId: e.target.value })}
             placeholder="es. alloy, o l'ID voce del provider"
             className={inputClass()}
           />
+          <datalist id="tts-voices">
+            {ttsVoices.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </datalist>
         </Field>
+        <AvailabilityHint catalog={catalog} section="tts" provider={config.tts.provider} />
         <Field label="Modello (opzionale)">
           <input
+            list="tts-models"
             value={config.tts.model ?? ""}
             onChange={(e) => update("tts", { model: e.target.value || undefined })}
             placeholder="es. tts-1, eleven_turbo_v2_5"
             className={inputClass()}
           />
+          <datalist id="tts-models">
+            {ttsModels.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
         </Field>
         <Field label="Lingua (opzionale)">
           <input

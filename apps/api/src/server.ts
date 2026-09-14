@@ -13,6 +13,7 @@ import { registerPlaygroundRoutes } from "./routes/playground.js";
 import { registerDocumentRoutes } from "./routes/documents.js";
 import { registerAgentToolRoutes } from "./routes/agent-tools.js";
 import { registerToolCallRequestRoutes } from "./routes/tool-call-requests.js";
+import { registerProviderCatalogRoutes } from "./routes/provider-catalog.js";
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -33,6 +34,7 @@ async function main() {
   registerDocumentRoutes(app, db);
   registerAgentToolRoutes(app, db);
   registerToolCallRequestRoutes(app, db);
+  registerProviderCatalogRoutes(app, db);
 
   await app.listen({ port: config.port, host: "0.0.0.0" });
 }
