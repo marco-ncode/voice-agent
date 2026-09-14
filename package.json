@@ -1,0 +1,21 @@
+{
+  "name": "v-agent",
+  "private": true,
+  "version": "0.1.0",
+  "description": "V Agent - piattaforma per costruire agenti vocali conversazionali multi-provider",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter=./packages/** --filter=./apps/** build",
+    "dev:api": "pnpm --filter @v-agent/api dev",
+    "dev:dashboard": "pnpm --filter @v-agent/dashboard dev",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
