@@ -77,10 +77,34 @@ pagamento. La colonna `agent_document_chunks.embedding` in
 futuro serve un modello con dimensione diversa, va aggiornata sia questa colonna sia la
 funzione `match_agent_document_chunks`.
 
+## Tool-calling: MCP e API esterne
+
+Un agente può chiamare strumenti esterni durante la conversazione, configurabili dalla
+scheda **Strumenti** nella dashboard:
+
+- **Server MCP remoti** — V Agent si collega come client MCP (via Streamable HTTP,
+  `packages/providers/src/mcp/client.ts`, basato su `@modelcontextprotocol/sdk`), scopre
+  i tool disponibili sul server ad ogni turno e li espone all'LLM.
+- **API custom** — un endpoint HTTP definito direttamente (metodo, URL, header, schema
+  JSON dei parametri), senza bisogno che l'altra parte parli MCP.
+
+Ogni strumento può essere marcato **"richiede approvazione umana"**: in quel caso la
+chiamata non viene eseguita subito ma accodata in `tool_call_requests` (visibile nella
+pagina **Approvazioni** della dashboard); l'agente nel frattempo dice all'utente che
+l'azione richiede un'autorizzazione. Approvare esegue lo strumento e salva il risultato,
+ma **non riprende la telefonata/conversazione originale** — è un limite noto per l'uso
+in tempo reale, utile soprattutto per azioni non urgenti o di back-office.
+
+Il loop di function-calling è implementato in `apps/api/src/services/agent-runtime.ts`
+(fino a 4 round di chiamate consecutive per turno) ed è supportato dai provider OpenAI,
+Azure OpenAI e locale (richiede che il server vLLM/TGI sottostante sia avviato con
+supporto tool-calling, es. `--enable-auto-tool-choice` su vLLM).
+
 ## Stato / prossimi passi
 
 Questo scaffold copre: layer multi-provider, schema DB multi-tenant con RAG (incluso il
 caricamento documenti dalla UI con supporto PDF/Word/testo semplice ed embedding locale
-via EmbeddingGemma), API REST + webhook + WebSocket real-time, servizio di inferenza GPU,
+via EmbeddingGemma), tool-calling verso server MCP e API esterne con approvazione umana
+opzionale, API REST + webhook + WebSocket real-time, servizio di inferenza GPU,
 dashboard/builder UI con playground chat + voce. **Non ancora implementati**: i
 connettori SIP/telefonia dedicati (le API sono già progettate per supportarli).

@@ -4,12 +4,15 @@ import {
   createSTTProvider,
   createTTSProvider,
   type LLMMessage,
+  type LLMUsage,
 } from "@v-agent/providers";
 import type { AgentProviderConfig } from "@v-agent/shared";
 import { config } from "../config.js";
 import { UsageTracker } from "./usage-tracker.js";
 import { RagService } from "./rag.js";
 import { pcmToWav } from "./audio.js";
+import { ToolExecutor } from "./tools.js";
+import { ToolCallLog } from "./tool-call-log.js";
 
 export interface AgentRecord {
   id: string;
@@ -23,6 +26,8 @@ export interface TurnResult {
   replyText: string;
   audio: Buffer;
 }
+
+const MAX_TOOL_ROUNDS = 4;
 
 export async function loadAgent(
   db: SupabaseClient,
@@ -48,12 +53,14 @@ export async function loadAgent(
  * Runs one full user-turn: transcribe the buffered utterance (or skip
  * straight to the LLM when the caller already has text, e.g. the dashboard
  * playground's text mode), optionally augment the prompt with RAG context,
- * get the LLM's reply, and synthesize it to audio. Non-streaming end-to-end
- * for simplicity; each provider's streaming methods are already exposed for
- * a lower-latency version later.
+ * let the LLM call any tools configured for the agent (MCP servers or
+ * custom APIs), get its final reply, and synthesize it to audio.
+ * Non-streaming end-to-end for simplicity; each provider's streaming
+ * methods are already exposed for a lower-latency version later.
  */
 export class AgentRuntime {
   private readonly usageTracker: UsageTracker;
+  private readonly toolCallLog: ToolCallLog;
   private readonly rag?: RagService;
 
   constructor(
@@ -63,6 +70,7 @@ export class AgentRuntime {
     private readonly history: LLMMessage[],
   ) {
     this.usageTracker = new UsageTracker(db);
+    this.toolCallLog = new ToolCallLog(db);
     if (agent.ragEnabled && config.providers.INFERENCE_SERVICE_URL && config.providers.INFERENCE_SERVICE_API_KEY) {
       this.rag = new RagService(db, {
         baseUrl: config.providers.INFERENCE_SERVICE_URL,
@@ -101,6 +109,19 @@ export class AgentRuntime {
     return this.completeTurn(text);
   }
 
+  private async recordLlmUsage(usage: LLMUsage): Promise<void> {
+    await this.usageTracker.record({
+      organizationId: this.agent.organizationId,
+      agentId: this.agent.id,
+      conversationId: this.conversationId,
+      kind: "llm",
+      provider: this.agent.providerConfig.llm.provider,
+      model: this.agent.providerConfig.llm.model,
+      unit: "tokens",
+      quantity: usage.promptTokens + usage.completionTokens,
+    });
+  }
+
   private async completeTurn(userText: string): Promise<Omit<TurnResult, "transcript">> {
     const { llm, tts } = this.agent.providerConfig;
 
@@ -115,22 +136,15 @@ export class AgentRuntime {
     this.history.push({ role: "user", content: userMessage });
 
     const llmProvider = createLLMProvider(llm.provider, config.providers);
-    const { text: replyText, usage } = await llmProvider.chat({
-      model: llm.model,
-      messages: this.history,
-      temperature: llm.temperature,
-    });
-    this.history.push({ role: "assistant", content: replyText });
-    await this.usageTracker.record({
-      organizationId: this.agent.organizationId,
-      agentId: this.agent.id,
-      conversationId: this.conversationId,
-      kind: "llm",
-      provider: llm.provider,
-      model: llm.model,
-      unit: "tokens",
-      quantity: usage.promptTokens + usage.completionTokens,
-    });
+    const toolExecutor = new ToolExecutor(this.db);
+    let replyText: string;
+
+    try {
+      const toolDefs = await toolExecutor.loadForAgent(this.agent.id);
+      replyText = await this.runToolCallingLoop(llmProvider, llm, toolDefs, toolExecutor);
+    } finally {
+      await toolExecutor.dispose();
+    }
 
     const ttsProvider = createTTSProvider(tts.provider, config.providers);
     const replyAudio = await ttsProvider.synthesize({
@@ -157,5 +171,98 @@ export class AgentRuntime {
     }
 
     return { replyText, audio: replyAudio };
+  }
+
+  /**
+   * Alternates LLM calls with tool execution until the model returns a
+   * plain text reply (no more tool calls) or MAX_TOOL_ROUNDS is hit, in
+   * which case one final call without tools forces a wrap-up answer.
+   */
+  private async runToolCallingLoop(
+    llmProvider: ReturnType<typeof createLLMProvider>,
+    llm: AgentProviderConfig["llm"],
+    toolDefs: Awaited<ReturnType<ToolExecutor["loadForAgent"]>>,
+    toolExecutor: ToolExecutor,
+  ): Promise<string> {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const result = await llmProvider.chat({
+        model: llm.model,
+        messages: this.history,
+        temperature: llm.temperature,
+        tools: toolDefs.length > 0 ? toolDefs : undefined,
+      });
+      await this.recordLlmUsage(result.usage);
+
+      if (!result.toolCalls?.length) {
+        this.history.push({ role: "assistant", content: result.text });
+        return result.text;
+      }
+
+      this.history.push({ role: "assistant", content: result.text, toolCalls: result.toolCalls });
+
+      for (const call of result.toolCalls) {
+        await this.executeToolCall(call, toolExecutor);
+      }
+    }
+
+    const finalResult = await llmProvider.chat({ model: llm.model, messages: this.history, temperature: llm.temperature });
+    await this.recordLlmUsage(finalResult.usage);
+    const replyText = finalResult.text || "Non sono riuscito a completare l'azione richiesta.";
+    this.history.push({ role: "assistant", content: replyText });
+    return replyText;
+  }
+
+  private async executeToolCall(
+    call: { id: string; name: string; arguments: Record<string, unknown> },
+    toolExecutor: ToolExecutor,
+  ): Promise<void> {
+    const tool = toolExecutor.findTool(call.name);
+    if (!tool) {
+      this.history.push({
+        role: "tool",
+        content: JSON.stringify({ error: "unknown_tool" }),
+        toolCallId: call.id,
+        name: call.name,
+      });
+      return;
+    }
+
+    const logInput = {
+      organizationId: this.agent.organizationId,
+      agentId: this.agent.id,
+      agentToolId: tool.agentToolId,
+      conversationId: this.conversationId,
+      toolName: call.name,
+      arguments: call.arguments,
+    };
+
+    if (tool.requiresConfirmation) {
+      await this.toolCallLog.recordPending(logInput);
+      this.history.push({
+        role: "tool",
+        content: JSON.stringify({
+          status: "pending_approval",
+          message: "Questa azione richiede l'approvazione di un operatore prima di essere eseguita.",
+        }),
+        toolCallId: call.id,
+        name: call.name,
+      });
+      return;
+    }
+
+    try {
+      const output = await tool.execute(call.arguments);
+      await this.toolCallLog.recordExecuted(logInput, output);
+      this.history.push({ role: "tool", content: output, toolCallId: call.id, name: call.name });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "tool_execution_failed";
+      await this.toolCallLog.recordFailed(logInput, message);
+      this.history.push({
+        role: "tool",
+        content: JSON.stringify({ error: message }),
+        toolCallId: call.id,
+        name: call.name,
+      });
+    }
   }
 }

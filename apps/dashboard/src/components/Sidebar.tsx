@@ -8,6 +8,7 @@ import { OrgSwitcher } from "./OrgSwitcher";
 
 const NAV_ITEMS = [
   { href: "/agents", label: "Agenti" },
+  { href: "/approvals", label: "Approvazioni" },
   { href: "/settings/api-keys", label: "Chiavi API" },
 ];
 

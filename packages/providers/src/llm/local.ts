@@ -1,4 +1,4 @@
-import type { LLMChatOptions, LLMChatResult, LLMChatChunk, LLMProvider } from "./types.js";
+import type { LLMChatOptions, LLMChatResult, LLMChatChunk, LLMProvider, ToolCall } from "./types.js";
 
 export interface LocalInferenceConfig {
   baseUrl: string;
@@ -29,9 +29,11 @@ export class LocalLLMProvider implements LLMProvider {
       text: string;
       prompt_tokens: number;
       completion_tokens: number;
+      tool_calls?: ToolCall[];
     };
     return {
       text: data.text,
+      toolCalls: data.tool_calls?.length ? data.tool_calls : undefined,
       usage: { promptTokens: data.prompt_tokens, completionTokens: data.completion_tokens },
     };
   }
